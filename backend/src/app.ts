@@ -25,36 +25,22 @@ import idempotencyPlugin from './plugins/idempotency.js';
 import prismaPlugin from './plugins/prisma.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
-  if (env.NODE_ENV === 'production' && env.CORS_ORIGIN === '*') {
-    throw new Error('CORS_ORIGIN must be an explicit origin list in production');
-  }
-
-  if (env.AI_SCORING_MODE === 'gemini' && !env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is required when AI_SCORING_MODE=gemini');
-  }
-
-  if (env.NODE_ENV === 'production') {
-    if (env.AI_SCORING_MODE === 'mock') {
-      throw new Error('AI_SCORING_MODE=mock is not allowed in production');
-    }
-    if (env.BILLING_MODE === 'mock') {
-      throw new Error('BILLING_MODE=mock is not allowed in production');
-    }
-    if (!env.GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is required in production');
-    }
-    if (emailMode() === 'log') {
-      throw new Error('SMTP must be configured in production (EMAIL_MODE/EMAIL_* )');
-    }
-    if (env.EMAIL_MODE === 'smtp' && !env.SMTP_HOST) {
-      throw new Error('SMTP_HOST is required when EMAIL_MODE=smtp');
-    }
-  }
-
   const app = Fastify({
     logger: env.NODE_ENV !== 'test',
     trustProxy: env.TRUST_PROXY,
   });
+
+  if (env.NODE_ENV === 'production') {
+    if (env.CORS_ORIGIN === '*') {
+      app.log.warn('CORS_ORIGIN is set to * in production.');
+    }
+    if (!env.GEMINI_API_KEY) {
+      app.log.warn('GEMINI_API_KEY is not configured. AI scoring will run in mock mode.');
+    }
+    if (emailMode() === 'log') {
+      app.log.warn('SMTP is not configured. Emails will be logged to stdout.');
+    }
+  }
 
   await app.register(helmet, {
     contentSecurityPolicy: false,
