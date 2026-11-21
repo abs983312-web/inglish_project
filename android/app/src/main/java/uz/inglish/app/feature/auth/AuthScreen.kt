@@ -1,5 +1,8 @@
 package uz.inglish.app.feature.auth
 
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,11 +24,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,11 +40,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -50,6 +58,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.launch
+import uz.inglish.app.BuildConfig
 import uz.inglish.app.ui.SystemBarIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +75,7 @@ fun AuthScreen(
     state: AuthUiState,
     onLogin: (email: String, password: String) -> Unit,
     onRegister: (displayName: String, email: String, password: String) -> Unit,
+    onGoogleAuth: (idToken: String) -> Unit,
     onForgotPassword: (email: String) -> Unit,
     onResetPassword: (code: String, password: String) -> Unit,
     onDismissReset: () -> Unit,
@@ -72,6 +90,9 @@ fun AuthScreen(
     var resetCode by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var newPasswordVisible by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     SystemBarIcons(darkStatusIcons = false, darkNavigationIcons = true)
 
@@ -304,6 +325,106 @@ fun AuthScreen(
                         }
                     }
 
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                    ) {
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        )
+                        Text(
+                            text = "YOKI",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            if (BuildConfig.GOOGLE_SERVER_CLIENT_ID.isBlank()) {
+                                Toast.makeText(
+                                    context,
+                                    "Google Client ID sozlanmagan. Iltimos Google Cloud Console'dan Web Client ID kiriting.",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                                return@OutlinedButton
+                            }
+
+                            val credentialManager = CredentialManager.create(context)
+                            val googleIdOption = GetGoogleIdOption.Builder()
+                                .setFilterByAuthorizedAccounts(false)
+                                .setServerClientId(BuildConfig.GOOGLE_SERVER_CLIENT_ID)
+                                .setAutoSelectEnabled(false)
+                                .build()
+
+                            val request = GetCredentialRequest.Builder()
+                                .addCredentialOption(googleIdOption)
+                                .build()
+
+                            coroutineScope.launch {
+                                try {
+                                    val result = credentialManager.getCredential(
+                                        request = request,
+                                        context = context,
+                                    )
+                                    val credential = result.credential
+                                    if (credential is CustomCredential &&
+                                        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                    ) {
+                                        val googleIdTokenCredential =
+                                            GoogleIdTokenCredential.createFrom(credential.data)
+                                        onGoogleAuth(googleIdTokenCredential.idToken)
+                                    }
+                                } catch (_: GetCredentialCancellationException) {
+                                    // Foydalanuvchi tanlovni bekor qildi
+                                } catch (e: GetCredentialException) {
+                                    Toast.makeText(
+                                        context,
+                                        "Google orqali kirishda xatolik: ${e.message}",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        "Xatolik: ${e.message}",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                        },
+                        enabled = !state.loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            GoogleIcon(modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Google orqali davom etish",
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+
                     Spacer(Modifier.height(12.dp))
                     Text(
                         text = "Davom etish orqali siz foydalanish shartlari va maxfiylik siyosatiga rozilik bildirasiz.",
@@ -532,6 +653,55 @@ private fun RowScope.AuthTab(
             fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) Color(0xFF0F3D2E) else Color(0xFF6B756F),
+        )
+    }
+}
+
+@Composable
+fun GoogleIcon(modifier: Modifier = Modifier.size(20.dp)) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = w * 0.18f
+
+        // Red arc (top)
+        drawArc(
+            color = Color(0xFFEA4335),
+            startAngle = 180f,
+            sweepAngle = 140f,
+            useCenter = false,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+        )
+        // Yellow arc (left)
+        drawArc(
+            color = Color(0xFFFBBC05),
+            startAngle = 135f,
+            sweepAngle = 55f,
+            useCenter = false,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+        )
+        // Green arc (bottom)
+        drawArc(
+            color = Color(0xFF34A853),
+            startAngle = 45f,
+            sweepAngle = 95f,
+            useCenter = false,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+        )
+        // Blue arc (right)
+        drawArc(
+            color = Color(0xFF4285F4),
+            startAngle = -45f,
+            sweepAngle = 90f,
+            useCenter = false,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+        )
+        // Blue crossbar
+        drawLine(
+            color = Color(0xFF4285F4),
+            start = androidx.compose.ui.geometry.Offset(w * 0.45f, h * 0.5f),
+            end = androidx.compose.ui.geometry.Offset(w * 0.95f, h * 0.5f),
+            strokeWidth = stroke,
         )
     }
 }

@@ -66,6 +66,14 @@ class AuthViewModel(
         submit { authApi.login(cleanEmail, password) }
     }
 
+    fun loginWithGoogle(idToken: String) {
+        if (idToken.isBlank()) {
+            showError("Google autentifikatsiya ma'lumoti olinmadi")
+            return
+        }
+        submit { authApi.googleAuth(idToken) }
+    }
+
     fun register(displayName: String, email: String, password: String) {
         val cleanName = displayName.trim()
         val cleanEmail = email.trim()

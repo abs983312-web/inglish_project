@@ -52,6 +52,7 @@ fun InglishRoot(
                 state = state,
                 onLogin = authViewModel::login,
                 onRegister = authViewModel::register,
+                onGoogleAuth = authViewModel::loginWithGoogle,
                 onForgotPassword = authViewModel::forgotPassword,
                 onResetPassword = authViewModel::resetPassword,
                 onDismissReset = authViewModel::dismissReset,

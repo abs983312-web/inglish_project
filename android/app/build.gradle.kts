@@ -32,11 +32,15 @@ android {
             // uses the server's mock purchase tokens instead of Google Play.
             val billingMock = ((project.findProperty("billingMock") as String?) ?: "true").toBoolean()
             buildConfigField("Boolean", "BILLING_MOCK", billingMock.toString())
+            val googleServerClientId = (project.findProperty("googleServerClientId") as String?) ?: ""
+            buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
         }
 
         release {
             buildConfigField("String", "API_BASE_URL", "\"https://api.inglish.uz/\"")
             buildConfigField("Boolean", "BILLING_MOCK", "false")
+            val googleServerClientId = (project.findProperty("googleServerClientId") as String?) ?: ""
+            buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
             // TODO: enable R8 once the release build and serialization rules are verified.
             isMinifyEnabled = false
             proguardFiles(
@@ -80,6 +84,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.navigation.compose)
+
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)

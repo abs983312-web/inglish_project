@@ -8,6 +8,7 @@ import io.ktor.http.contentType
 import uz.inglish.app.core.network.dto.AuthResponse
 import uz.inglish.app.core.network.dto.CodeRequest
 import uz.inglish.app.core.network.dto.ForgotPasswordRequest
+import uz.inglish.app.core.network.dto.GoogleAuthRequest
 import uz.inglish.app.core.network.dto.LoginRequest
 import uz.inglish.app.core.network.dto.MeResponse
 import uz.inglish.app.core.network.dto.RegisterRequest
@@ -31,6 +32,16 @@ class AuthApi(private val api: ApiClient) {
         val response = api.http.post("${api.base}v1/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequest(email = email, password = password))
+        }
+        val auth = response.bodyOrThrow<AuthResponse>()
+        api.saveSession(auth)
+        return auth
+    }
+
+    suspend fun googleAuth(idToken: String): AuthResponse {
+        val response = api.http.post("${api.base}v1/auth/google") {
+            contentType(ContentType.Application.Json)
+            setBody(GoogleAuthRequest(idToken = idToken))
         }
         val auth = response.bodyOrThrow<AuthResponse>()
         api.saveSession(auth)

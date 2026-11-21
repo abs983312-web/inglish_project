@@ -6,6 +6,7 @@ import { AuthService } from './service.js';
 import {
   authCodeSchema,
   forgotPasswordSchema,
+  googleAuthSchema,
   loginSchema,
   refreshSchema,
   registerSchema,
@@ -34,6 +35,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
     const input = parseBody(loginSchema, request.body);
     return service.login(input);
+  });
+
+  app.post('/google', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+    const input = parseBody(googleAuthSchema, request.body);
+    return service.loginWithGoogle(input.idToken);
   });
 
   app.post('/refresh', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {

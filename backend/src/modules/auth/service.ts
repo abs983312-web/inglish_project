@@ -5,6 +5,8 @@ import {
   type Profile,
   type User,
 } from '@prisma/client';
+import { OAuth2Client } from 'google-auth-library';
+import crypto from 'node:crypto';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { normalizeEmail, sendEmail } from '../../lib/email.js';
@@ -65,6 +67,8 @@ export function toPublicUser(user: User & { profile: Profile | null }): PublicUs
 }
 
 export class AuthService {
+  private readonly googleClient = new OAuth2Client();
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly signAccess: SignAccess,
@@ -133,6 +137,67 @@ export class AuthService {
 
     if (!user || user.deletedAt || !valid) {
       throw AppError.unauthorized('Invalid email or password');
+    }
+
+    const tokens = await this.issueTokens(user);
+    return { user: toPublicUser(user), ...tokens };
+  }
+
+  async loginWithGoogle(idToken: string): Promise<{ user: PublicUser } & TokenPair> {
+    let payload;
+    try {
+      const audiences = [env.GOOGLE_CLIENT_ID, env.GOOGLE_ANDROID_CLIENT_ID].filter(Boolean) as string[];
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: audiences.length > 0 ? audiences : undefined,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw AppError.unauthorized('Invalid Google ID token');
+    }
+
+    if (!payload || !payload.email) {
+      throw AppError.badRequest('INVALID_GOOGLE_TOKEN', 'Google token is invalid or missing email');
+    }
+
+    const email = normalizeEmail(payload.email);
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { profile: true },
+    });
+
+    if (user) {
+      if (user.deletedAt) {
+        throw AppError.unauthorized('Account has been deactivated');
+      }
+      if (!user.emailVerified) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+          include: { profile: true },
+        });
+      }
+    } else {
+      const randomPassword = crypto.randomUUID() + '-GAuth-' + Date.now();
+      const passwordHash = await hashPassword(randomPassword);
+      const displayName = (payload.name || payload.given_name || email.split('@')[0] || 'User').trim();
+
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          emailVerified: true,
+          profile: {
+            create: {
+              displayName: displayName.slice(0, 60),
+            },
+          },
+          subscription: {
+            create: { plan: 'FREE', status: 'ACTIVE' },
+          },
+        },
+        include: { profile: true },
+      });
     }
 
     const tokens = await this.issueTokens(user);

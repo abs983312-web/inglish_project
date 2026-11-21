@@ -32,6 +32,9 @@ const envSchema = z.object({
   // RTDN push authentication: either a shared bearer token or the OIDC audience.
   PLAY_RTDN_TOKEN: z.string().optional(),
   PLAY_RTDN_AUDIENCE: z.string().optional(),
+  // Google OAuth Client ID (for verifying Google Sign-In tokens)
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_ANDROID_CLIENT_ID: z.string().optional(),
   // Transactional email: `auto` uses SMTP when configured, otherwise logs.
   EMAIL_MODE: z.enum(['auto', 'log', 'smtp']).default('auto'),
   EMAIL_FROM: z.string().default('Inglish <no-reply@inglish.uz>'),
